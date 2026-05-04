@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# macOS / editor
+.DS_Store
+*.swp
+*.swo
+
+# Local/generated vault data
+data/*.json
+*.log
+
+# Local backups kept on disk, not in git
+*.backup-*.html
+*.backup-before-*.html
+*.backup-*.py
+*.backup-before-*.py
+
+# Generated/experimental media
+fr-voice-test/clips/
+*.wav
+*.mp3
+*.m4a
+*.mp4
+*.mov
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
