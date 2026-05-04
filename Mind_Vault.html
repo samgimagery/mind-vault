@@ -1750,6 +1750,7 @@ function renderPaperCarousel() {
     panel?.classList.remove('has-paper-nav'); updateAdaptiveStats(); return;
   }
   wrap.classList.add('visible');
+  document.getElementById('middleViewer')?.classList.remove('visible');
   panel?.classList.add('has-paper-nav');
   syncCarouselIndexFromPosition(false);
   const radiusX = Math.min(320, Math.max(150, (wrap.clientWidth || 700) * .34));
@@ -1780,15 +1781,11 @@ function renderPaperCarousel() {
 }
 
 async function updateMiddleViewer(id) {
-  const viewer = document.getElementById('middleViewer');
-  const nd = VAULT.nodes[id];
-  if (!viewer || !nd || !paperCarouselArmed) return;
-  viewer.classList.add('visible');
-  const content = await ensureNodeContent(id) || nd.content || '';
-  const parsed = parseObsidianProperties(content);
-  const preview = briefMarkdownText(parsed.body || content, 1600) || 'No preview available.';
-  const degree = nd.degree || connectedNodeIds(id).size - 1;
-  viewer.innerHTML = `<div class="middle-viewer-kicker">Selected file</div><div class="middle-viewer-title">${escapeHtml(nd.name)}</div><div class="middle-viewer-meta">${escapeHtml(nd.category || 'Note')} · ${degree} links</div><div class="middle-viewer-preview">${escapeHtml(preview)}</div><div class="middle-viewer-actions"><button class="set-btn" onclick="focusOnNode(${id})">Focus</button><button class="set-btn" onclick="openInfoPage(${id})">Reader</button><button class="set-btn" onclick="openMarpDeck(${id})">Deck</button><button class="set-btn" onclick="summarizeNode(${id})">Summary</button><button class="set-btn" onclick="pinNodeSurface(${id})">Pin</button><button class="set-btn" onclick="readTextAloud(${JSON.stringify(nd.name)}, ${JSON.stringify(preview)}, event)">Read</button></div>`;
+  // Centre-screen file cards are retired. The bottom carousel now changes
+  // the right reader/details panel directly, matching the Mission Control read flow.
+  document.getElementById('middleViewer')?.classList.remove('visible');
+  if (!paperCarouselArmed || !VAULT.nodes[id]) return;
+  await showNodePanel(id);
 }
 
 
@@ -1814,7 +1811,6 @@ function selectPaper(id, event) {
   const idx = paperCarouselIds.indexOf(id);
   if (idx >= 0) { paperCarouselIndex = idx; paperCarouselPosition = idx; paperCarouselVelocity = 0; }
   renderPaperCarousel();
-  updateMiddleViewer(id);
   focusOnNode(id);
 }
 
@@ -1826,7 +1822,7 @@ function stepPaperCarousel(delta, event) {
   paperCarouselVelocity = 0;
   renderPaperCarousel();
   const id = currentPaperId();
-  if (id != null) { updateMiddleViewer(id); focusOnNode(id); }
+  if (id != null) focusOnNode(id);
 }
 
 function animatePaperCarousel() {
@@ -3202,7 +3198,7 @@ function focusOnNode(id) {
     lastFilterLabel = nd.category || 'Related';
     setPaperCarouselIds(carouselSet, false, true);
     const idx = paperCarouselIds.indexOf(id);
-    if (idx >= 0) { paperCarouselIndex = idx; paperCarouselPosition = idx; renderPaperCarousel(); updateMiddleViewer(id); }
+    if (idx >= 0) { paperCarouselIndex = idx; paperCarouselPosition = idx; renderPaperCarousel(); }
   }
 
   visibleSet = new Set(ids);
@@ -3215,7 +3211,6 @@ function focusOnNode(id) {
   if (!panelManuallyCollapsed) showNodePanel(id, ids);
   else {
     activePanelNodeId = id;
-    updateMiddleViewer(id);
     const panel = document.getElementById('respPanel');
     panel?.classList.add('visible', 'collapsed');
     updatePanelExpandButton();
@@ -3797,16 +3792,32 @@ function readSurfaceTextFromIframe(event) {
 async function openInfoPage(id) {
   const nd = VAULT.nodes[id];
   if (!nd) return;
-  const overlay = document.getElementById('marpOverlay');
-  overlay?.classList.add('open');
   const content = await ensureNodeContent(id) || nd.content || '';
   const vault = encodeURIComponent(currentVaultName || DEFAULT_VAULT || 'Mission Control');
   const file = encodeURIComponent(nd.path || `${nd.name}.md`);
   const obsidianUrl = `obsidian://open?vault=${vault}&file=${file}`;
   currentReaderText = content;
-  const html = `<!doctype html><html class="reader-html"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${document.querySelector('style')?.textContent || ''}</style></head><body class="reader-body"><main class="document-page"><article><div class="reader-action-bar"><button class="set-btn" onclick="parent.readSurfaceTextFromIframe(event)">Read visible/selected</button><a class="set-btn" style="text-decoration:none;display:inline-flex;align-items:center" href="${obsidianUrl}">Open original</a></div><div class="document-kicker">Mind Vault Reader · Full Markdown</div><h1>${escapeHtml(nd.name)}</h1>${simpleMarkdownHtml(content)}</article></main></body></html>`;
-  setSurfaceHtml(html);
-  createSurface({ type:'document', title:nd.name, sourceNodeId:id, sourcePath:nd.path || '', content, preview:content, html });
+  activePanelNodeId = id;
+  document.getElementById('middleViewer')?.classList.remove('visible');
+  document.getElementById('marpOverlay')?.classList.remove('open');
+  const panel = document.getElementById('respPanel');
+  panel?.classList.add('visible');
+  panel?.classList.remove('collapsed', 'expanded', 'compact');
+  panelManuallyCollapsed = false;
+  updatePanelExpandButton();
+  document.getElementById('respHead').textContent = 'Reader';
+  document.getElementById('respBody').innerHTML = `
+    <div class="panel-title">${escapeHtml(nd.name)}</div>
+    <div class="panel-meta">Mind Vault Reader · ${escapeHtml(nd.category || 'Note')}</div>
+    <div class="panel-actions" style="margin-bottom:16px">
+      <button class="set-btn" onclick="readCurrentPanel(event)">Read visible/selected</button>
+      <a class="set-btn" style="text-decoration:none;display:inline-flex;align-items:center" href="${obsidianUrl}">Open original</a>
+    </div>
+    <div class="panel-preview">${simpleMarkdownHtml(content)}</div>
+  `;
+  const footerWrap = document.getElementById('panelFooter');
+  if (footerWrap) footerWrap.style.display = 'none';
+  createSurface({ type:'document', title:nd.name, sourceNodeId:id, sourcePath:nd.path || '', content, preview:content, html:content });
 }
 
 async function summarizeNode(id) {
