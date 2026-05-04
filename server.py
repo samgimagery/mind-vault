@@ -36,6 +36,7 @@ if str(RECEPTIONIST_DIR) not in sys.path:
 VAULTS = {
     "mission-control": Path(os.path.expanduser("~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Mission Control")),
     "samg.studio": Path(os.path.expanduser("~/Library/Mobile Documents/iCloud~md~obsidian/Documents/samg.studio")),
+    "ams": Path(os.path.expanduser("~/Library/Mobile Documents/iCloud~md~obsidian/Documents/AMS")),
 }
 TECH_JUNK = {".obsidian", ".smart-env", ".git", "node_modules", ".mind-vault"}
 
@@ -349,7 +350,7 @@ async def handle_scarlett_lab_ask(request):
         if not question:
             return web.json_response({"ok": False, "error": "Missing question"}, status=400)
         vault_key = data.get("vault") or "mission-control"
-        lang = data.get("language") or "en"
+        lang = data.get("language") or ("fr" if vault_key == "ams" else "en")
         current_node = data.get("currentNode") or {}
         current_path = current_node.get("path") or ""
         current_content = current_node.get("content") or ""
@@ -365,22 +366,25 @@ async def handle_scarlett_lab_ask(request):
             f"Source: {h['path']}\nScore: {h['score']}\nExcerpt: {h['snippet']}"
             for h in hits
         )
-        prompt = f"""You are Scarlett inside Mind Vault Lab for Sam.
+        lang_instruction = "Réponds uniquement en français québécois naturel." if str(lang).lower().startswith("fr") else "Answer in natural English."
+        prompt = f"""Tu es Scarlett Core dans le banc d'essai Mind Vault de Sam.
 
-Answer from the provided local vault context. Be concise, warm, and practical.
-Do not mention hidden chain-of-thought. Do not pretend to access files that were not provided.
-If the context is insufficient, say what is missing and suggest the next useful action.
+Rôle: réceptionniste vocale locale pour l'Académie de Massage Scientifique quand le vault AMS est utilisé.
+Style: naturel, bref, chaleureux, premium, sans te présenter et sans dire « je suis Scarlett » sauf si on te le demande.
+Source de vérité: utilise seulement le contexte local fourni ci-dessous.
+Si l'information n'est pas dans le contexte, dis-le simplement et propose la prochaine action utile.
+Ne jamais inventer prix, dates, reconnaissance de diplôme, disponibilité ou conseils médicaux/réglementaires.
+{lang_instruction}
 
-Language: {lang}
 Question: {question}
 
-Local vault context:
-{context or '(no matching local notes found)'}
+Contexte local:
+{context or '(aucune note locale correspondante trouvée)'}
 """
         payload = {
             "model": SCARLETT_LAB_MODEL,
             "messages": [
-                {"role": "system", "content": "You are Scarlett inside Mind Vault Lab. Use provided local vault context only. Be concise, warm, and practical."},
+                {"role": "system", "content": "Tu es Scarlett Core, réceptionniste vocale locale FR-CA pour le lab Mind Vault/AMS. Réponds depuis le contexte local seulement. Ne te présente pas. N'invente jamais les détails sensibles."},
                 {"role": "user", "content": prompt},
             ],
             "stream": False,
