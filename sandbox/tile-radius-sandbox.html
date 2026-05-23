@@ -13,9 +13,11 @@
     --muted:rgba(243,240,232,.58);
     --button:rgba(248,246,239,.13);
     --ui-pad:clamp(12px, 2vw, 24px);
+    --font-ui:"Avenir Next","Helvetica Neue",Helvetica,sans-serif;
+    --font-display:"Avenir Next Condensed","DIN Condensed","Helvetica Neue",Helvetica,sans-serif;
   }
   *{box-sizing:border-box}
-  html,body{height:100%;margin:0;overflow:hidden;background:#111416;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  html,body{height:100%;margin:0;overflow:hidden;background:#111416;color:var(--text);font-family:var(--font-ui)}
   body{
     background:
       radial-gradient(circle at 12% 8%,rgba(255,236,193,.16),transparent 25vw),
@@ -29,25 +31,12 @@
       linear-gradient(90deg,rgba(0,0,0,.18),transparent 28%,transparent 72%,rgba(0,0,0,.26)),
       radial-gradient(circle at 50% 50%,transparent 0,rgba(0,0,0,.26) 74%);
   }
-  .hud{
-    position:fixed;left:var(--ui-pad);top:var(--ui-pad);display:flex;gap:8px;align-items:center;z-index:3;
-    max-width:calc(100vw - (var(--ui-pad) * 2));
-    flex-wrap:wrap;
-  }
-  .hud button{
-    height:38px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:var(--button);
-    color:var(--text);font:600 12px/1 Inter,ui-sans-serif,system-ui;letter-spacing:.04em;text-transform:uppercase;
-    padding:0 13px;backdrop-filter:blur(18px);box-shadow:0 12px 28px rgba(0,0,0,.22);cursor:pointer;
-  }
-  .hud button.icon{width:38px;padding:0;display:grid;place-items:center}
-  .hud button:hover{background:rgba(248,246,239,.19)}
-  .hud svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8}
   .status{
     position:fixed;right:var(--ui-pad);bottom:var(--ui-pad);z-index:3;
     max-width:min(420px, calc(100vw - (var(--ui-pad) * 2)));
     font-size:12px;line-height:1.45;letter-spacing:.02em;text-align:right;text-shadow:0 1px 12px rgba(0,0,0,.6);
   }
-  .status strong{display:block;color:rgba(243,240,232,.85);font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:5px}
+  .status strong{display:block;color:rgba(243,240,232,.85);font-family:var(--font-display);font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:5px}
   .debug{
     position:fixed;left:var(--ui-pad);bottom:var(--ui-pad);z-index:4;
     min-width:min(260px, calc(100vw - (var(--ui-pad) * 2)));
@@ -70,10 +59,10 @@
     box-shadow:0 26px 70px rgba(0,0,0,.36);transform:translateX(-116%);opacity:0;transition:.24s ease;
   }
   body.controls-open .panel{transform:translateX(0);opacity:1}
-  .panel h1{margin:0 0 4px;font-size:13px;letter-spacing:.17em;text-transform:uppercase;font-weight:700}
+  .panel h1{margin:0 0 4px;font-family:var(--font-display);font-size:16px;letter-spacing:.16em;text-transform:uppercase;font-weight:700}
   .panel p{margin:0 0 16px;color:var(--muted);font-size:12px;line-height:1.45}
   .control{display:grid;grid-template-columns:82px 1fr 42px;gap:10px;align-items:center;margin:12px 0}
-  .control label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(243,240,232,.68)}
+  .control label{font-family:var(--font-display);font-size:12px;letter-spacing:.11em;text-transform:uppercase;color:rgba(243,240,232,.68)}
   .control output{font-size:12px;color:rgba(243,240,232,.78);text-align:right;font-variant-numeric:tabular-nums}
   input[type=range]{appearance:none;width:100%;height:22px;background:transparent}
   input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:999px;background:rgba(255,255,255,.22)}
@@ -93,7 +82,6 @@
   .error h2{margin:0 0 8px;font-size:16px}
   .error p{margin:0;color:rgba(243,240,232,.64);line-height:1.5}
   @media (max-width:760px){
-    .hud{left:var(--ui-pad);top:var(--ui-pad);max-width:none}
     .panel{top:calc(var(--ui-pad) + 42px);left:var(--ui-pad);right:var(--ui-pad);width:auto}
     .status{left:var(--ui-pad);right:var(--ui-pad);text-align:left}
   }
@@ -102,9 +90,6 @@
 <body>
 <canvas id="scene"></canvas>
 <div class="shade"></div>
-<div class="hud">
-  <button id="resetButton">Reset</button>
-</div>
 <aside class="panel" id="panel" aria-label="Tile geometry controls">
   <h1>Slab Geometry</h1>
   <p>Real rounded extrusions. Buttons and content are solved as one layout across viewport sizes.</p>
@@ -154,7 +139,6 @@ const canvas = document.getElementById("scene");
 const loading = document.getElementById("loading");
 const statusText = document.getElementById("statusText");
 const panel = document.getElementById("panel");
-const resetButton = document.getElementById("resetButton");
 const errorBox = document.getElementById("error");
 const debugReadout = document.getElementById("debugReadout");
 
@@ -187,6 +171,9 @@ const state = {
   targetCameraX: 0,
   targetCameraY: 0,
   targetCameraZ: 10,
+  detailAimX: 0,
+  detailAimY: 0,
+  detailViewSize: 2.45,
   boardHomeX: 0,
   boardHomeY: 0,
   boardHomeZ: 0,
@@ -198,6 +185,8 @@ const state = {
   debug: false,
   downX: 0,
   downY: 0,
+  pointerX: 0,
+  pointerY: 0,
   lastActivation: 0,
   yaw: 0,
   pitch: 0,
@@ -327,10 +316,10 @@ function materialBase(){
 }
 
 function canvasTextTexture(tile, width, height){
-  const scale = 260;
+  const scale = Math.max(260, 560 / Math.max(width, 0.1), 360 / Math.max(height, 0.1));
   const c = document.createElement("canvas");
-  c.width = Math.max(512, Math.round(width * scale));
-  c.height = Math.max(384, Math.round(height * scale));
+  c.width = Math.round(width * scale);
+  c.height = Math.round(height * scale);
   const ctx = c.getContext("2d");
   ctx.clearRect(0, 0, c.width, c.height);
   const pad = Math.round(Math.min(c.width, c.height) * 0.085);
@@ -340,15 +329,15 @@ function canvasTextTexture(tile, width, height){
   const body = tile.summary || tile.path || "";
   ctx.textBaseline = "top";
   ctx.fillStyle = "rgba(42,45,44,.42)";
-  ctx.font = `600 ${small}px Inter, Arial, sans-serif`;
+  ctx.font = `650 ${small}px Avenir Next Condensed, Helvetica Neue, sans-serif`;
   ctx.letterSpacing = `${Math.round(small * .32)}px`;
   ctx.fillText(eyebrow, pad, pad);
   ctx.letterSpacing = "0px";
   ctx.fillStyle = "rgba(26,29,29,.68)";
-  ctx.font = `500 ${Math.round(c.height * (tile.hero ? .09 : .068))}px Inter, Arial, sans-serif`;
+  ctx.font = `500 ${Math.round(c.height * (tile.hero ? .085 : .063))}px Avenir Next, Helvetica Neue, sans-serif`;
   wrap(ctx, title, pad, pad + small * 2.2, c.width - pad * 2, Math.round(c.height * (tile.hero ? .105 : .083)), tile.hero ? 2 : 3);
   ctx.fillStyle = "rgba(48,50,48,.42)";
-  ctx.font = `400 ${Math.round(c.height * .042)}px Inter, Arial, sans-serif`;
+  ctx.font = `400 ${Math.round(c.height * .038)}px Avenir Next, Helvetica Neue, sans-serif`;
   wrap(ctx, body, pad, c.height * (tile.hero ? .47 : .48), c.width - pad * 2, Math.round(c.height * .064), tile.hero ? 4 : 3);
   ctx.strokeStyle = "rgba(18,20,20,.18)";
   ctx.lineWidth = Math.max(2, c.width * .004);
@@ -406,11 +395,14 @@ function addIcon(group, kind, size, depth){
   icon.position.z = z;
   const stroke = size * .038;
   if(kind === "search"){
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(size * .135, stroke, 12, 48), mat);
-    ring.position.set(-size * .045, size * .045, 0);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(size * .108, size * .156, 44),
+      mat
+    );
+    ring.position.set(-size * .036, size * .04, 0);
     icon.add(ring);
-    const handle = new THREE.Mesh(new THREE.CapsuleGeometry(stroke, size * .145, 8, 14), mat);
-    handle.position.set(size * .095, -size * .095, 0);
+    const handle = new THREE.Mesh(new THREE.PlaneGeometry(stroke * 1.18, size * .19), mat);
+    handle.position.set(size * .092, -size * .102, 0);
     handle.rotation.z = -Math.PI / 4;
     icon.add(handle);
   }
@@ -485,9 +477,12 @@ function clearBoard(){
 }
 
 function buildBoard(){
+  const controlsWereOpen = document.body.classList.contains("controls-open");
   clearBoard();
-  board.position.set(0, 0, 0);
-  board.rotation.set(0, 0, 0);
+  if(!controlsWereOpen){
+    board.position.set(0, 0, 0);
+    board.rotation.set(0, 0, 0);
+  }
   const baseMaterial = materialBase();
   const items = layout();
   const bounds = {minX:Infinity, minY:Infinity, maxX:-Infinity, maxY:-Infinity};
@@ -504,6 +499,9 @@ function buildBoard(){
   state.boardHomeX = -centerX;
   state.boardHomeY = -centerY;
   state.boardHomeZ = 0;
+  state.detailAimX = -state.boundsWidth / 2 + (state.dense ? 0.92 : 1.05);
+  state.detailAimY = state.boundsHeight / 2 - (state.dense ? 0.54 : 0.62);
+  state.detailViewSize = Math.max(1.85, (state.dense ? 2.05 : 2.35) + state.depth * 2.6);
 
   items.forEach((item, index) => {
     const group = new THREE.Group();
@@ -539,7 +537,11 @@ function buildBoard(){
   document.body.dataset.cameraMode = "front-flat-orthographic";
   document.body.dataset.compositionOffset = `${state.targetBoardX.toFixed(2)},${state.targetBoardY.toFixed(2)}`;
   updateFitDistance();
-  setCameraMode(true);
+  if(controlsWereOpen){
+    openControls();
+  }else{
+    setCameraMode(true);
+  }
 }
 
 function buildFixedTools(baseMaterial){
@@ -629,6 +631,27 @@ function setCameraMode(immediate = false){
   document.body.dataset.compositionOffset = `${state.targetBoardX.toFixed(2)},${state.targetBoardY.toFixed(2)}`;
 }
 
+function openControls(){
+  document.body.classList.add("controls-open");
+  state.profile = true;
+  state.targetAimX = state.detailAimX;
+  state.targetAimY = state.detailAimY;
+  state.targetAimZ = 0;
+  state.targetCameraX = state.detailAimX;
+  state.targetCameraY = state.detailAimY;
+  state.targetViewSize = state.detailViewSize;
+  state.targetBoardX = state.boardHomeX;
+  state.targetBoardY = state.boardHomeY;
+  state.targetBoardZ = state.boardHomeZ;
+  statusText.textContent = "Geometry surface: close study of tile radius, depth, and gutter.";
+  document.body.dataset.cameraMode = "corner-detail-orthographic";
+}
+
+function closeControls(){
+  document.body.classList.remove("controls-open");
+  setCameraMode();
+}
+
 function resize(){
   const rect = canvas.getBoundingClientRect();
   const w = Math.max(1, Math.round(rect.width));
@@ -653,6 +676,9 @@ function applyCameraFrustum(viewSize){
 
 function animate(){
   requestAnimationFrame(animate);
+  const tilt = document.body.classList.contains("controls-open") ? 0.028 : 0.045;
+  state.targetYaw = state.pointerX * tilt;
+  state.targetPitch = clamp(-state.pointerY * tilt * 0.72, -0.045, 0.035);
   state.yaw += (state.targetYaw - state.yaw) * .06;
   state.pitch += (state.targetPitch - state.pitch) * .06;
   board.rotation.y = state.yaw;
@@ -683,6 +709,8 @@ function updatePointer(event){
   const rect = canvas.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+  state.pointerX = pointer.x;
+  state.pointerY = pointer.y;
   raycaster.setFromCamera(pointer, camera);
   const hit = raycaster.intersectObjects(meshes, false)[0];
   state.hovered = hit ? hit.object.userData.tileGroup : null;
@@ -698,18 +726,16 @@ function activateTile(group){
   const item = group.userData.item;
   if(item?.type === "tool"){
     if(item.kind === "more"){
-      document.body.classList.add("controls-open");
-      state.profile = false;
+      openControls();
       return;
     }
     if(item.kind === "search"){
-      state.profile = false;
-      document.body.classList.remove("controls-open");
+      closeControls();
       statusText.textContent = "Search tile clicked. Interaction is active; search UI can be wired next.";
       return;
     }
   }
-  state.profile = false;
+  closeControls();
   statusText.textContent = "Tile selected. Overview stays solved so anchors and layout remain stable.";
 }
 
@@ -740,16 +766,13 @@ Object.entries(inputs).forEach(([key, input]) => {
   });
 });
 
-resetButton.addEventListener("click", () => {
-  Object.assign(state, {gutter:0.045, radius:0.155, depth:0.075, glass:0.88, light:2.25, warmth:0.34, profile:false, dense:false, yaw:0, pitch:0, targetYaw:0, targetPitch:0, targetCameraX:0, targetCameraY:0, targetCameraZ:10, targetBoardX:0, targetBoardY:0, targetBoardZ:0});
-  document.body.classList.remove("controls-open");
-  syncControls();
-  updateLighting();
-  buildBoard();
-});
-
 canvas.addEventListener("pointermove", updatePointer);
-canvas.addEventListener("pointerleave", () => {state.hovered = null; document.body.style.cursor = "default"});
+canvas.addEventListener("pointerleave", () => {
+  state.hovered = null;
+  state.pointerX = 0;
+  state.pointerY = 0;
+  document.body.style.cursor = "default";
+});
 canvas.addEventListener("pointerdown", event => {
   state.pointerDown = true;
   state.pointerDragged = false;
@@ -774,8 +797,7 @@ document.addEventListener("pointerdown", event => {
   if(panel.contains(event.target)) return;
   updatePointer(event);
   if(state.hovered?.userData?.item?.kind === "more") return;
-  document.body.classList.remove("controls-open");
-  state.profile = false;
+  closeControls();
 });
 canvas.addEventListener("pointermove", event => {
   if(!state.pointerDown) return;
@@ -785,8 +807,7 @@ canvas.addEventListener("pointermove", event => {
 });
 window.addEventListener("keydown", event => {
   if(event.key === "Escape"){
-    document.body.classList.remove("controls-open");
-    state.profile = false;
+    closeControls();
   }
   if(event.key.toLowerCase() === "d"){
     state.debug = !state.debug;
