@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mind Vault Slab Geometry Study</title>
+<style>
+  :root{
+    color-scheme:dark;
+    --panel:rgba(16,18,19,.72);
+    --panel-line:rgba(255,255,255,.14);
+    --text:#f3f0e8;
+    --muted:rgba(243,240,232,.58);
+    --button:rgba(248,246,239,.13);
+    --ui-pad:clamp(12px, 2vw, 24px);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overflow:hidden;background:#111416;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  body{
+    background:
+      radial-gradient(circle at 12% 8%,rgba(255,236,193,.16),transparent 25vw),
+      radial-gradient(circle at 88% 22%,rgba(185,207,217,.12),transparent 30vw),
+      linear-gradient(135deg,#25292b 0%,#16191a 42%,#090a0a 100%);
+  }
+  #scene{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block;touch-action:none}
+  .shade{
+    position:fixed;inset:0;pointer-events:none;
+    background:
+      linear-gradient(90deg,rgba(0,0,0,.18),transparent 28%,transparent 72%,rgba(0,0,0,.26)),
+      radial-gradient(circle at 50% 50%,transparent 0,rgba(0,0,0,.26) 74%);
+  }
+  .hud{
+    position:fixed;left:var(--ui-pad);top:var(--ui-pad);display:flex;gap:8px;align-items:center;z-index:3;
+    max-width:calc(100vw - (var(--ui-pad) * 2));
+    flex-wrap:wrap;
+  }
+  .hud button{
+    height:38px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:var(--button);
+    color:var(--text);font:600 12px/1 Inter,ui-sans-serif,system-ui;letter-spacing:.04em;text-transform:uppercase;
+    padding:0 13px;backdrop-filter:blur(18px);box-shadow:0 12px 28px rgba(0,0,0,.22);cursor:pointer;
+  }
+  .hud button.icon{width:38px;padding:0;display:grid;place-items:center}
+  .hud button:hover{background:rgba(248,246,239,.19)}
+  .hud svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8}
+  .status{
+    position:fixed;right:var(--ui-pad);bottom:var(--ui-pad);z-index:3;
+    max-width:min(420px, calc(100vw - (var(--ui-pad) * 2)));
+    font-size:12px;line-height:1.45;letter-spacing:.02em;text-align:right;text-shadow:0 1px 12px rgba(0,0,0,.6);
+  }
+  .status strong{display:block;color:rgba(243,240,232,.85);font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:5px}
+  .debug{
+    position:fixed;left:var(--ui-pad);bottom:var(--ui-pad);z-index:4;
+    min-width:min(260px, calc(100vw - (var(--ui-pad) * 2)));
+    max-width:calc(100vw - (var(--ui-pad) * 2));
+    max-height:38vh;
+    overflow:auto;
+    padding:12px 14px;
+    border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(8,10,10,.62);
+    color:rgba(243,240,232,.66);font:11px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;
+    backdrop-filter:blur(16px);display:none;white-space:pre;
+  }
+  body.debug-on .debug{display:block}
+  .panel{
+    position:fixed;left:var(--ui-pad);top:calc(var(--ui-pad) + 50px);
+    width:min(306px, calc(100vw - (var(--ui-pad) * 2)));
+    max-height:calc(100vh - (var(--ui-pad) * 3) - 50px);
+    overflow:auto;
+    z-index:4;padding:18px;border:1px solid var(--panel-line);
+    border-radius:18px;background:var(--panel);backdrop-filter:blur(24px) saturate(120%);
+    box-shadow:0 26px 70px rgba(0,0,0,.36);transform:translateX(-116%);opacity:0;transition:.24s ease;
+  }
+  body.controls-open .panel{transform:translateX(0);opacity:1}
+  .panel h1{margin:0 0 4px;font-size:13px;letter-spacing:.17em;text-transform:uppercase;font-weight:700}
+  .panel p{margin:0 0 16px;color:var(--muted);font-size:12px;line-height:1.45}
+  .control{display:grid;grid-template-columns:82px 1fr 42px;gap:10px;align-items:center;margin:12px 0}
+  .control label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(243,240,232,.68)}
+  .control output{font-size:12px;color:rgba(243,240,232,.78);text-align:right;font-variant-numeric:tabular-nums}
+  input[type=range]{appearance:none;width:100%;height:22px;background:transparent}
+  input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:999px;background:rgba(255,255,255,.22)}
+  input[type=range]::-webkit-slider-thumb{appearance:none;width:16px;height:16px;margin-top:-6.5px;border-radius:999px;background:#f4f1e9;border:1px solid rgba(0,0,0,.18);box-shadow:0 2px 10px rgba(0,0,0,.35)}
+  .loading{
+    position:fixed;inset:0;z-index:10;display:grid;place-items:center;text-align:center;
+    color:rgba(243,240,232,.74);font-size:13px;letter-spacing:.08em;text-transform:uppercase;
+    background:#101314;transition:.35s ease;pointer-events:none;
+  }
+  .loading.hide{opacity:0;pointer-events:none}
+  body[data-ready="true"] .loading{display:none}
+  .loading span{display:block;margin-top:10px;color:rgba(243,240,232,.42);font-size:11px;letter-spacing:.04em;text-transform:none}
+  .error{
+    position:fixed;left:50%;top:50%;z-index:12;transform:translate(-50%,-50%);max-width:520px;padding:22px;
+    border:1px solid rgba(255,255,255,.16);border-radius:18px;background:rgba(12,13,13,.9);display:none;
+  }
+  .error h2{margin:0 0 8px;font-size:16px}
+  .error p{margin:0;color:rgba(243,240,232,.64);line-height:1.5}
+  @media (max-width:760px){
+    .hud{left:var(--ui-pad);top:var(--ui-pad);max-width:none}
+    .panel{top:calc(var(--ui-pad) + 42px);left:var(--ui-pad);right:var(--ui-pad);width:auto}
+    .status{left:var(--ui-pad);right:var(--ui-pad);text-align:left}
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="shade"></div>
+<div class="hud">
+  <button id="resetButton">Reset</button>
+</div>
+<aside class="panel" id="panel" aria-label="Tile geometry controls">
+  <h1>Slab Geometry</h1>
+  <p>Real rounded extrusions. Buttons and content are solved as one layout across viewport sizes.</p>
+  <div class="control">
+    <label for="gutter">Gutter</label>
+    <input id="gutter" type="range" min="0" max="0.16" step="0.005" value="0.045">
+    <output id="gutterOut">0.045</output>
+  </div>
+  <div class="control">
+    <label for="radius">Radius</label>
+    <input id="radius" type="range" min="0.035" max="0.32" step="0.005" value="0.155">
+    <output id="radiusOut">0.155</output>
+  </div>
+  <div class="control">
+    <label for="depth">Depth</label>
+    <input id="depth" type="range" min="0.025" max="0.18" step="0.005" value="0.075">
+    <output id="depthOut">0.075</output>
+  </div>
+  <div class="control">
+    <label for="glass">Opacity</label>
+    <input id="glass" type="range" min="0.72" max="0.98" step="0.01" value="0.88">
+    <output id="glassOut">0.88</output>
+  </div>
+  <div class="control">
+    <label for="light">Light</label>
+    <input id="light" type="range" min="0.8" max="3.2" step="0.05" value="2.25">
+    <output id="lightOut">2.25</output>
+  </div>
+  <div class="control">
+    <label for="warmth">Warmth</label>
+    <input id="warmth" type="range" min="0" max="1" step="0.01" value="0.34">
+    <output id="warmthOut">0.34</output>
+  </div>
+</aside>
+<div class="status"><strong>AMS-SAMG read only</strong><span id="statusText">Loading vault sample into real 3D slabs.</span></div>
+<div class="debug" id="debugReadout"></div>
+<div class="loading" id="loading">Building slab geometry<span>Three.js mesh pass</span></div>
+<div class="error" id="error">
+  <h2>Three.js did not load</h2>
+  <p>This version uses a CDN module for Three.js. Open it from the localhost server and allow network access, or vendor Three.js locally into the sandbox.</p>
+</div>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js";
+
+const canvas = document.getElementById("scene");
+const loading = document.getElementById("loading");
+const statusText = document.getElementById("statusText");
+const panel = document.getElementById("panel");
+const resetButton = document.getElementById("resetButton");
+const errorBox = document.getElementById("error");
+const debugReadout = document.getElementById("debugReadout");
+
+const inputs = {
+  gutter: document.getElementById("gutter"),
+  radius: document.getElementById("radius"),
+  depth: document.getElementById("depth"),
+  glass: document.getElementById("glass"),
+  light: document.getElementById("light"),
+  warmth: document.getElementById("warmth")
+};
+const outputs = Object.fromEntries(Object.keys(inputs).map(key => [key, document.getElementById(`${key}Out`)]));
+
+const state = {
+  gutter: 0.045,
+  radius: 0.155,
+  depth: 0.075,
+  glass: 0.88,
+  light: 2.25,
+  warmth: 0.34,
+  profile: false,
+  dense: false,
+  viewSize: 12,
+  minViewSize: 5.8,
+  maxViewSize: 40,
+  targetViewSize: 12,
+  targetAimX: 0,
+  targetAimY: 0,
+  targetAimZ: 0,
+  targetCameraX: 0,
+  targetCameraY: 0,
+  targetCameraZ: 10,
+  boardHomeX: 0,
+  boardHomeY: 0,
+  boardHomeZ: 0,
+  targetBoardX: 0,
+  targetBoardY: 0,
+  targetBoardZ: 0,
+  pointerDown: false,
+  pointerDragged: false,
+  debug: false,
+  downX: 0,
+  downY: 0,
+  lastActivation: 0,
+  yaw: 0,
+  pitch: 0,
+  targetYaw: 0,
+  targetPitch: 0,
+  hovered: null,
+  selected: null,
+  notes: []
+};
+
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true, preserveDrawingBuffer:true, powerPreference:"high-performance"});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0d0f10, 0.032);
+
+const camera = new THREE.OrthographicCamera(-4, 4, 3, -3, 0.1, 100);
+camera.position.set(0, 0, 10);
+const cameraTarget = new THREE.Vector3(0, 0, 0);
+const measuredBounds = new THREE.Box3();
+const measuredCenter = new THREE.Vector3();
+const measuredSize = new THREE.Vector3();
+
+const board = new THREE.Group();
+scene.add(board);
+const fixedTools = new THREE.Group();
+scene.add(fixedTools);
+
+const lights = {
+  ambient: new THREE.HemisphereLight(0xffffff, 0x15120f, 1.1),
+  key: new THREE.DirectionalLight(0xffead1, 2.6),
+  fill: new THREE.DirectionalLight(0xb7cad6, 0.72),
+  rim: new THREE.PointLight(0xffffff, 2.1, 12, 1.8),
+  table: new THREE.PointLight(0xffcf92, 1.2, 7, 2.2)
+};
+lights.key.position.set(-3.8, 4.4, 5.8);
+lights.key.castShadow = true;
+lights.key.shadow.mapSize.set(2048, 2048);
+lights.key.shadow.camera.near = 1;
+lights.key.shadow.camera.far = 16;
+lights.key.shadow.camera.left = -6;
+lights.key.shadow.camera.right = 6;
+lights.key.shadow.camera.top = 5;
+lights.key.shadow.camera.bottom = -5;
+lights.fill.position.set(4.2, 1.4, 5.2);
+lights.rim.position.set(3.8, 3.2, -1.8);
+lights.table.position.set(-2.6, -3.4, 3.4);
+Object.values(lights).forEach(light => scene.add(light));
+
+const shadowPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(18, 12),
+  new THREE.ShadowMaterial({color:0x000000, opacity:.24})
+);
+shadowPlane.position.set(0, -2.9, -0.5);
+shadowPlane.rotation.x = -Math.PI / 2.24;
+shadowPlane.receiveShadow = true;
+scene.add(shadowPlane);
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2(-10, -10);
+const meshes = [];
+const tileGroups = [];
+
+function clamp(value, min, max){
+  return Math.max(min, Math.min(max, value));
+}
+
+function roundedShape(width, height, radius){
+  const w = width / 2;
+  const h = height / 2;
+  const r = clamp(radius, 0.001, Math.min(w, h) - 0.001);
+  const shape = new THREE.Shape();
+  shape.moveTo(-w + r, -h);
+  shape.lineTo(w - r, -h);
+  shape.quadraticCurveTo(w, -h, w, -h + r);
+  shape.lineTo(w, h - r);
+  shape.quadraticCurveTo(w, h, w - r, h);
+  shape.lineTo(-w + r, h);
+  shape.quadraticCurveTo(-w, h, -w, h - r);
+  shape.lineTo(-w, -h + r);
+  shape.quadraticCurveTo(-w, -h, -w + r, -h);
+  return shape;
+}
+
+function slabGeometry(width, height, depth, radius){
+  const edge = clamp(depth * 0.52, 0.012, Math.min(radius * 0.55, depth * 0.8));
+  const geometry = new THREE.ExtrudeGeometry(roundedShape(width, height, radius), {
+    depth,
+    bevelEnabled: true,
+    bevelThickness: edge,
+    bevelSize: edge,
+    bevelOffset: 0,
+    bevelSegments: 14,
+    curveSegments: 24
+  });
+  geometry.center();
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function materialBase(){
+  const cool = new THREE.Color(0xf4f2ea);
+  const warm = new THREE.Color(0xf0e4ca);
+  cool.lerp(warm, state.warmth);
+  const glass = clamp(state.glass, 0, 1);
+  return new THREE.MeshPhysicalMaterial({
+    color: cool,
+    roughness: 0.58,
+    metalness: 0,
+    clearcoat: 0.52,
+    clearcoatRoughness: 0.62,
+    transmission: 1 - glass,
+    thickness: 0.045,
+    transparent: glass < 0.999,
+    opacity: glass,
+    ior: 1.38,
+    attenuationColor: 0xffffff,
+    attenuationDistance: 0.9,
+    side: THREE.FrontSide,
+    depthWrite: true
+  });
+}
+
+function canvasTextTexture(tile, width, height){
+  const scale = 260;
+  const c = document.createElement("canvas");
+  c.width = Math.max(512, Math.round(width * scale));
+  c.height = Math.max(384, Math.round(height * scale));
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, c.width, c.height);
+  const pad = Math.round(Math.min(c.width, c.height) * 0.085);
+  const small = Math.max(16, Math.round(c.height * 0.035));
+  const eyebrow = (tile.eyebrow || "AMS-SAMG").toUpperCase();
+  const title = tile.title || "Untitled note";
+  const body = tile.summary || tile.path || "";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "rgba(42,45,44,.42)";
+  ctx.font = `600 ${small}px Inter, Arial, sans-serif`;
+  ctx.letterSpacing = `${Math.round(small * .32)}px`;
+  ctx.fillText(eyebrow, pad, pad);
+  ctx.letterSpacing = "0px";
+  ctx.fillStyle = "rgba(26,29,29,.68)";
+  ctx.font = `500 ${Math.round(c.height * (tile.hero ? .09 : .068))}px Inter, Arial, sans-serif`;
+  wrap(ctx, title, pad, pad + small * 2.2, c.width - pad * 2, Math.round(c.height * (tile.hero ? .105 : .083)), tile.hero ? 2 : 3);
+  ctx.fillStyle = "rgba(48,50,48,.42)";
+  ctx.font = `400 ${Math.round(c.height * .042)}px Inter, Arial, sans-serif`;
+  wrap(ctx, body, pad, c.height * (tile.hero ? .47 : .48), c.width - pad * 2, Math.round(c.height * .064), tile.hero ? 4 : 3);
+  ctx.strokeStyle = "rgba(18,20,20,.18)";
+  ctx.lineWidth = Math.max(2, c.width * .004);
+  ctx.beginPath();
+  ctx.moveTo(pad, c.height - pad * .9);
+  ctx.lineTo(pad + Math.min(c.width * .22, 190), c.height - pad * .9);
+  ctx.stroke();
+  const texture = new THREE.CanvasTexture(c);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return texture;
+}
+
+function wrap(ctx, text, x, y, maxWidth, lineHeight, maxLines){
+  const words = String(text).replace(/\s+/g, " ").trim().split(" ");
+  let line = "";
+  let lines = 0;
+  for(const word of words){
+    const test = line ? `${line} ${word}` : word;
+    if(ctx.measureText(test).width > maxWidth && line){
+      ctx.fillText(line, x, y);
+      y += lineHeight;
+      lines++;
+      line = word;
+      if(lines >= maxLines - 1) break;
+    }else{
+      line = test;
+    }
+  }
+  if(line && lines < maxLines){
+    const suffix = words.join(" ").length > line.length && maxLines === lines + 1 ? "..." : "";
+    ctx.fillText(`${line}${suffix}`, x, y);
+  }
+}
+
+function addFaceText(group, tile, width, height, depth){
+  const map = canvasTextTexture(tile, width, height);
+  const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(width * .88, height * .82),
+    new THREE.MeshBasicMaterial({map, transparent:true, opacity:.92, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2})
+  );
+  plane.position.z = depth / 2 + depth * .58;
+  plane.renderOrder = 4;
+  group.add(plane);
+}
+
+function iconMaterial(){
+  return new THREE.MeshBasicMaterial({color:0x444644, transparent:true, opacity:.84, side:THREE.DoubleSide});
+}
+
+function addIcon(group, kind, size, depth){
+  const z = depth / 2 + depth * .7;
+  const mat = iconMaterial();
+  const icon = new THREE.Group();
+  icon.position.z = z;
+  const stroke = size * .038;
+  if(kind === "search"){
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(size * .135, stroke, 12, 48), mat);
+    ring.position.set(-size * .045, size * .045, 0);
+    icon.add(ring);
+    const handle = new THREE.Mesh(new THREE.CapsuleGeometry(stroke, size * .145, 8, 14), mat);
+    handle.position.set(size * .095, -size * .095, 0);
+    handle.rotation.z = -Math.PI / 4;
+    icon.add(handle);
+  }
+  if(kind === "more"){
+    [-.13, 0, .13].forEach(y => {
+      const dot = new THREE.Mesh(new THREE.CircleGeometry(size * .038, 28), mat);
+      dot.position.y = size * y;
+      icon.add(dot);
+    });
+  }
+  if(kind === "grid"){
+    [[-.105,.09],[.105,.09],[-.105,-.09],[.105,-.09]].forEach(([x,y]) => {
+      const cell = new THREE.Mesh(new THREE.PlaneGeometry(size * .13, size * .105), mat);
+      cell.position.set(size * x, size * y, 0);
+      icon.add(cell);
+    });
+  }
+  group.add(icon);
+}
+
+function layout(){
+  const cell = state.dense ? 0.62 : 0.72;
+  const g = state.gutter;
+  return [
+    {type:"tool", kind:"search", col:0, row:0, sx:1, sy:1},
+    {type:"tool", kind:"more", col:0, row:1, sx:1, sy:1},
+    {type:"note", note:0, col:1, row:0, sx:5, sy:3, hero:true},
+    {type:"note", note:1, col:6, row:0, sx:3, sy:2},
+    {type:"note", note:2, col:1, row:3, sx:3, sy:2},
+    {type:"note", note:3, col:4, row:3, sx:5, sy:2},
+    {type:"note", note:4, col:6, row:2, sx:3, sy:1}
+  ].map(item => {
+    const width = item.sx * cell + Math.max(0, item.sx - 1) * g;
+    const height = item.sy * cell + Math.max(0, item.sy - 1) * g;
+    const x = item.col * (cell + g) + width / 2;
+    const y = -(item.row * (cell + g) + height / 2);
+    return {...item, width, height, x, y};
+  });
+}
+
+function noteFor(index, hero){
+  const note = state.notes[index] || {};
+  const parts = String(note.path || "").split("/").filter(Boolean);
+  const title = note.title || parts.at(-1)?.replace(/\.md$/,"") || ["AMS Vault Map","Programmes Et Formations","Reception Scarlett","Pricing Facts","Human Review Queue"][index] || "AMS Note";
+  const summary = note.summary || note.excerpt || parts.slice(-4).join(" / ") || "Vault note rendered as a texture on the slab face.";
+  return {title, summary, eyebrow: `${String(index).padStart(2,"0")} ${parts.at(-2) || "AMS"}`, hero};
+}
+
+function clearBoard(){
+  meshes.length = 0;
+  tileGroups.length = 0;
+  while(board.children.length){
+    const child = board.children.pop();
+    child.traverse(obj => {
+      if(obj.geometry) obj.geometry.dispose();
+      if(obj.material){
+        if(obj.material.map) obj.material.map.dispose();
+        obj.material.dispose();
+      }
+    });
+  }
+  while(fixedTools.children.length){
+    const child = fixedTools.children.pop();
+    child.traverse(obj => {
+      if(obj.geometry) obj.geometry.dispose();
+      if(obj.material){
+        if(obj.material.map) obj.material.map.dispose();
+        obj.material.dispose();
+      }
+    });
+  }
+}
+
+function buildBoard(){
+  clearBoard();
+  board.position.set(0, 0, 0);
+  board.rotation.set(0, 0, 0);
+  const baseMaterial = materialBase();
+  const items = layout();
+  const bounds = {minX:Infinity, minY:Infinity, maxX:-Infinity, maxY:-Infinity};
+  items.forEach(item => {
+    bounds.minX = Math.min(bounds.minX, item.x - item.width / 2);
+    bounds.maxX = Math.max(bounds.maxX, item.x + item.width / 2);
+    bounds.minY = Math.min(bounds.minY, item.y - item.height / 2);
+    bounds.maxY = Math.max(bounds.maxY, item.y + item.height / 2);
+  });
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerY = (bounds.minY + bounds.maxY) / 2;
+  state.boundsWidth = bounds.maxX - bounds.minX;
+  state.boundsHeight = bounds.maxY - bounds.minY;
+  state.boardHomeX = -centerX;
+  state.boardHomeY = -centerY;
+  state.boardHomeZ = 0;
+
+  items.forEach((item, index) => {
+    const group = new THREE.Group();
+    group.position.set(item.x, item.y, 0);
+    group.userData = {homeZ:0, targetZ:0, item};
+    const mesh = new THREE.Mesh(slabGeometry(item.width, item.height, state.depth, state.radius), baseMaterial.clone());
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData.tileGroup = group;
+    mesh.userData.item = item;
+    group.add(mesh);
+    if(item.type === "tool"){
+      addIcon(group, item.kind, item.width, state.depth);
+    }else{
+      addFaceText(group, noteFor(item.note, item.hero), item.width, item.height, state.depth);
+    }
+    board.add(group);
+    meshes.push(mesh);
+    tileGroups.push(group);
+    if(!state.selected && item.type === "note") state.selected = group;
+    if(index === 3) state.selected = state.selected || group;
+  });
+  baseMaterial.dispose();
+  window.__mindvaultSlabs = {
+    tileCount: tileGroups.length,
+    meshCount: meshes.length,
+    usesRealGeometry: true,
+    geometry: "THREE.ExtrudeGeometry rounded rectangle slabs"
+  };
+  document.body.dataset.tileCount = String(tileGroups.length);
+  document.body.dataset.meshCount = String(meshes.length);
+  document.body.dataset.geometry = "three-extrude-rounded-slabs";
+  document.body.dataset.cameraMode = "front-flat-orthographic";
+  document.body.dataset.compositionOffset = `${state.targetBoardX.toFixed(2)},${state.targetBoardY.toFixed(2)}`;
+  updateFitDistance();
+  setCameraMode(true);
+}
+
+function buildFixedTools(baseMaterial){
+  const size = state.dense ? 0.62 : 0.72;
+  ["search","more"].forEach((kind, index) => {
+    const group = new THREE.Group();
+    group.userData = {item:{type:"tool", kind}, fixedTool:true};
+    const mesh = new THREE.Mesh(slabGeometry(size, size, state.depth, state.radius), baseMaterial.clone());
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData.tileGroup = group;
+    mesh.userData.item = group.userData.item;
+    group.add(mesh);
+    addIcon(group, kind, size, state.depth);
+    fixedTools.add(group);
+    meshes.push(mesh);
+    tileGroups.push(group);
+  });
+}
+
+function updateFixedTools(){
+  const leftEdge = board.position.x - (state.boundsWidth || 7) / 2;
+  const topEdge = board.position.y + (state.boundsHeight || 4) / 2;
+  document.body.dataset.toolAnchor = `${leftEdge.toFixed(2)},${topEdge.toFixed(2)}`;
+  if(state.debug){
+    debugReadout.textContent = [
+      `bounds       ${document.body.dataset.bounds}`,
+      `viewSize     ${document.body.dataset.viewSize}`,
+      `composition  ${document.body.dataset.compositionOffset}`,
+      `toolAnchor   ${document.body.dataset.toolAnchor}`,
+      `cameraMode   ${document.body.dataset.cameraMode}`,
+      `material     ${state.glass < 0.999 ? "transmission-frontside" : "opaque-frontside"}`
+    ].join("\n");
+  }
+}
+
+function updateFitDistance(){
+  const rect = canvas.getBoundingClientRect();
+  const aspect = Math.max(rect.width / Math.max(rect.height, 1), 0.1);
+  const boardW = state.boundsWidth || 7;
+  const boardH = state.boundsHeight || 4;
+  const fitPadding = 1.62;
+  const fitByHeight = boardH * fitPadding;
+  const fitByWidth = (boardW * fitPadding) / aspect;
+  state.viewSize = Math.max(fitByHeight, fitByWidth, state.minViewSize);
+  if(!state.profile) state.targetViewSize = state.viewSize;
+  document.body.dataset.bounds = `${boardW.toFixed(2)}x${boardH.toFixed(2)}`;
+  document.body.dataset.viewSize = state.targetViewSize.toFixed(2);
+}
+
+function updateLighting(){
+  const power = state.light;
+  lights.ambient.intensity = 0.62 + power * .22;
+  lights.key.intensity = 1.0 + power * 1.05;
+  lights.fill.intensity = 0.22 + power * .22;
+  lights.rim.intensity = 0.55 + power * .62;
+  lights.table.intensity = 0.28 + power * .42;
+  const warm = new THREE.Color(0xffead1).lerp(new THREE.Color(0xffd49c), state.warmth);
+  lights.key.color.copy(warm);
+  lights.table.color.copy(warm);
+}
+
+function setCameraMode(immediate = false){
+  state.profile = false;
+  state.targetYaw = 0;
+  state.targetPitch = 0;
+  state.targetAimX = 0;
+  state.targetAimY = 0;
+  state.targetAimZ = 0;
+  state.targetCameraX = 0;
+  state.targetCameraY = 0;
+  state.targetCameraZ = 10;
+  state.targetViewSize = state.viewSize;
+  state.targetBoardX = state.boardHomeX;
+  state.targetBoardY = state.boardHomeY;
+  state.targetBoardZ = state.boardHomeZ;
+  statusText.textContent = "Solved overview: buttons and tiles share one measured layout.";
+  if(immediate){
+    state.yaw = state.targetYaw;
+    state.pitch = state.targetPitch;
+    board.position.set(state.targetBoardX, state.targetBoardY, state.targetBoardZ);
+    camera.position.set(state.targetCameraX, state.targetCameraY, state.targetCameraZ);
+    cameraTarget.set(state.targetAimX, state.targetAimY, state.targetAimZ);
+    applyCameraFrustum(state.targetViewSize);
+  }
+  document.body.dataset.cameraMode = "front-flat-orthographic";
+  document.body.dataset.compositionOffset = `${state.targetBoardX.toFixed(2)},${state.targetBoardY.toFixed(2)}`;
+}
+
+function resize(){
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(1, Math.round(rect.width));
+  const h = Math.max(1, Math.round(rect.height));
+  renderer.setSize(w, h, false);
+  updateFitDistance();
+  setCameraMode();
+}
+
+function applyCameraFrustum(viewSize){
+  const rect = canvas.getBoundingClientRect();
+  const aspect = rect.width / Math.max(rect.height, 1);
+  const halfH = viewSize / 2;
+  const halfW = halfH * aspect;
+  camera.left = -halfW;
+  camera.right = halfW;
+  camera.top = halfH;
+  camera.bottom = -halfH;
+  camera.updateProjectionMatrix();
+  document.body.dataset.viewSize = viewSize.toFixed(2);
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  state.yaw += (state.targetYaw - state.yaw) * .06;
+  state.pitch += (state.targetPitch - state.pitch) * .06;
+  board.rotation.y = state.yaw;
+  board.rotation.x = state.pitch;
+  board.rotation.z = 0;
+  board.position.x += ((state.targetBoardX - board.position.x) * .055);
+  board.position.y += ((state.targetBoardY - board.position.y) * .055);
+  board.position.z += ((state.targetBoardZ - board.position.z) * .055);
+  camera.position.x += ((state.targetCameraX - camera.position.x) * .07);
+  camera.position.y += ((state.targetCameraY - camera.position.y) * .07);
+  camera.position.z += ((state.targetCameraZ - camera.position.z) * .055);
+  cameraTarget.set(state.targetAimX, state.targetAimY, state.targetAimZ);
+  applyCameraFrustum(camera.top * 2 + (state.targetViewSize - camera.top * 2) * .08);
+  camera.lookAt(cameraTarget);
+  updateFixedTools();
+  tileGroups.forEach(group => {
+    if(group.userData.fixedTool) return;
+    const isHover = group === state.hovered;
+    const z = isHover ? 0.08 : 0;
+    group.position.z += (z - group.position.z) * .12;
+    group.rotation.x += ((state.profile && isHover ? -0.018 : 0) - group.rotation.x) * .1;
+    group.rotation.y += ((state.profile && isHover ? 0.024 : 0) - group.rotation.y) * .1;
+  });
+  renderer.render(scene, camera);
+}
+
+function updatePointer(event){
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(meshes, false)[0];
+  state.hovered = hit ? hit.object.userData.tileGroup : null;
+  document.body.style.cursor = state.hovered ? "pointer" : "default";
+}
+
+function activateTile(group){
+  if(!group) return;
+  const now = performance.now();
+  if(now - state.lastActivation < 220) return;
+  state.lastActivation = now;
+  state.selected = group;
+  const item = group.userData.item;
+  if(item?.type === "tool"){
+    if(item.kind === "more"){
+      document.body.classList.add("controls-open");
+      state.profile = false;
+      return;
+    }
+    if(item.kind === "search"){
+      state.profile = false;
+      document.body.classList.remove("controls-open");
+      statusText.textContent = "Search tile clicked. Interaction is active; search UI can be wired next.";
+      return;
+    }
+  }
+  state.profile = false;
+  statusText.textContent = "Tile selected. Overview stays solved so anchors and layout remain stable.";
+}
+
+async function loadNotes(){
+  try{
+    const response = await fetch("./mission-control-sample.json", {cache:"no-store"});
+    if(!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    state.notes = Array.isArray(data.notes) ? data.notes : Array.isArray(data) ? data : [];
+  }catch(error){
+    state.notes = [];
+  }
+}
+
+function syncControls(){
+  Object.entries(inputs).forEach(([key, input]) => {
+    input.value = state[key];
+    outputs[key].textContent = Number(state[key]).toFixed(key === "light" || key === "warmth" || key === "glass" ? 2 : 3);
+  });
+}
+
+Object.entries(inputs).forEach(([key, input]) => {
+  input.addEventListener("input", () => {
+    state[key] = Number(input.value);
+    outputs[key].textContent = Number(state[key]).toFixed(key === "light" || key === "warmth" || key === "glass" ? 2 : 3);
+    updateLighting();
+    if(["gutter","radius","depth","glass","warmth"].includes(key)) buildBoard();
+  });
+});
+
+resetButton.addEventListener("click", () => {
+  Object.assign(state, {gutter:0.045, radius:0.155, depth:0.075, glass:0.88, light:2.25, warmth:0.34, profile:false, dense:false, yaw:0, pitch:0, targetYaw:0, targetPitch:0, targetCameraX:0, targetCameraY:0, targetCameraZ:10, targetBoardX:0, targetBoardY:0, targetBoardZ:0});
+  document.body.classList.remove("controls-open");
+  syncControls();
+  updateLighting();
+  buildBoard();
+});
+
+canvas.addEventListener("pointermove", updatePointer);
+canvas.addEventListener("pointerleave", () => {state.hovered = null; document.body.style.cursor = "default"});
+canvas.addEventListener("pointerdown", event => {
+  state.pointerDown = true;
+  state.pointerDragged = false;
+  state.downX = event.clientX;
+  state.downY = event.clientY;
+  canvas.setPointerCapture(event.pointerId);
+  updatePointer(event);
+});
+canvas.addEventListener("pointerup", event => {
+  updatePointer(event);
+  if(!state.pointerDragged) activateTile(state.hovered);
+  state.pointerDown = false;
+  canvas.releasePointerCapture(event.pointerId);
+});
+canvas.addEventListener("click", event => {
+  if(state.pointerDragged) return;
+  updatePointer(event);
+  activateTile(state.hovered);
+});
+document.addEventListener("pointerdown", event => {
+  if(!document.body.classList.contains("controls-open")) return;
+  if(panel.contains(event.target)) return;
+  updatePointer(event);
+  if(state.hovered?.userData?.item?.kind === "more") return;
+  document.body.classList.remove("controls-open");
+  state.profile = false;
+});
+canvas.addEventListener("pointermove", event => {
+  if(!state.pointerDown) return;
+  const distance = Math.hypot(event.clientX - state.downX, event.clientY - state.downY);
+  if(distance < 4) return;
+  state.pointerDragged = true;
+});
+window.addEventListener("keydown", event => {
+  if(event.key === "Escape"){
+    document.body.classList.remove("controls-open");
+    state.profile = false;
+  }
+  if(event.key.toLowerCase() === "d"){
+    state.debug = !state.debug;
+    document.body.classList.toggle("debug-on", state.debug);
+  }
+});
+window.addEventListener("resize", resize);
+
+try{
+  syncControls();
+  resize();
+  updateLighting();
+  await loadNotes();
+  buildBoard();
+  animate();
+  document.body.dataset.ready = "true";
+  loading.classList.add("hide");
+}catch(error){
+  console.error(error);
+  errorBox.style.display = "block";
+  loading.classList.add("hide");
+}
+</script>
+</body>
+</html>
